@@ -14,7 +14,11 @@
 
 use std::slice;
 
+use risingwave_common::bail;
 use risingwave_common::types::DataType;
+use risingwave_pb::expr::PbInputRef;
+
+use crate::Result;
 
 /// An aggregation function may accept 0, 1 or 2 arguments.
 #[derive(Clone, Debug)]
@@ -25,6 +29,24 @@ pub enum AggArgs {
     Unary(DataType, usize),
     /// `Binary` is used for function calls that accept 2 arguments, e.g. `string_agg(x, delim)`.
     Binary([DataType; 2], [usize; 2]),
+}
+
+impl AggArgs {
+    pub fn from_protobuf(args: &[PbInputRef]) -> Result<Self> {
+        let args = match args {
+            [] => Self::None,
+            [arg] => Self::Unary(DataType::from(arg.get_type()?), arg.get_index() as usize),
+            [arg1, arg2] => AggArgs::Binary(
+                [
+                    DataType::from(arg1.get_type()?),
+                    DataType::from(arg2.get_type()?),
+                ],
+                [arg1.get_index() as usize, arg2.get_index() as usize],
+            ),
+            _ => bail!("too many arguments for agg call"),
+        };
+        Ok(args)
+    }
 }
 
 impl AggArgs {

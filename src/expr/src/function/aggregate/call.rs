@@ -14,7 +14,6 @@
 
 use std::sync::Arc;
 
-use risingwave_common::bail;
 use risingwave_common::types::DataType;
 use risingwave_common::util::sort_util::{ColumnOrder, OrderType};
 use risingwave_pb::expr::PbAggCall;
@@ -47,20 +46,7 @@ pub struct AggCall {
 impl AggCall {
     pub fn from_protobuf(agg_call: &PbAggCall) -> Result<Self> {
         let agg_kind = AggKind::from_protobuf(agg_call.get_type()?)?;
-        let args = match &agg_call.get_args()[..] {
-            [] => AggArgs::None,
-            [arg] if agg_kind != AggKind::StringAgg => {
-                AggArgs::Unary(DataType::from(arg.get_type()?), arg.get_index() as usize)
-            }
-            [agg_arg, extra_arg] if agg_kind == AggKind::StringAgg => AggArgs::Binary(
-                [
-                    DataType::from(agg_arg.get_type()?),
-                    DataType::from(extra_arg.get_type()?),
-                ],
-                [agg_arg.get_index() as usize, extra_arg.get_index() as usize],
-            ),
-            _ => bail!("Too many/few arguments for {:?}", agg_kind),
-        };
+        let args = AggArgs::from_protobuf(agg_call.get_args())?;
         let column_orders = agg_call
             .get_order_by()
             .iter()
